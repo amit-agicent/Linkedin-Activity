@@ -5,7 +5,7 @@
 // script.js
 // ================================
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwO22KmGbXkP5sT28w129BT4u9yoIUUc81CeC46B9Mh0RNOuzWjw02vqVK4abScBmc-HQ/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbx3xN33DHXWh-oUS9qvcJGVZ0DEcjozuQXPYE0GMkkmg5lXsIAaF1e-zpAR3UvhNi_VsA/exec";
 
 const timeSlots = [
     { ist: '8:00 PM', us: '9:30 AM EST / 6:30 AM PST' },
@@ -238,6 +238,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadTheme();
     loadData();
 });
+
 
 
 
