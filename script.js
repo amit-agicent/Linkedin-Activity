@@ -1,49 +1,107 @@
 /* ===================================== */
-/* script.js - MODIFIED */
+/* script.js - Modified for Google Sheets */
 /* ===================================== */
 
-// Note: The original hardcoded time slots are replaced by real-time calculation.
+// 🛑 IMPORTANT: PASTE YOUR DEPLOYED GOOGLE APPS SCRIPT URL HERE
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwRuvU7ipi7gq1aSRDuJ6C2hP6WaTHnYVbQt1ROpy-sve_rZIBlGp28no_2GVBOWXTgAg/exec'; 
 
 let entries = [];
 let nextId = 1;
+let isSaving = false; // Flag to prevent rapid-fire saves
 
-// --- Time Zone Calculation Logic ---
+// --- API Communication Functions ---
 
 /**
- * Calculates time for EST, PST, and BST based on a given IST date/time.
- * @param {string} istDateTimeString - A string combining date and time (e.g., "2025-10-01T20:30").
- * @returns {object} An object containing the calculated time zone strings.
+ * Communicates with the Google Apps Script endpoint.
  */
+async function apiCall(action, entry = null) {
+    try {
+        const response = await fetch(APP_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            // Apps Script requires the payload in a specific format
+            body: JSON.stringify({ action, entry })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+
+    } catch (error) {
+        console.error("API Call Failed:", action, entry, error);
+        alert(`Failed to communicate with Google Sheet. Check console for details. Error: ${error.message}`);
+        return { success: false };
+    }
+}
+
+/**
+ * Fetches all data from the Google Sheet.
+ */
+async function loadData() {
+    try {
+        const response = await fetch(APP_SCRIPT_URL);
+        const json = await response.json();
+        
+        if (json.success) {
+            entries = json.data.map(e => ({
+                // Ensure number fields are parsed as numbers (since sheet returns strings/dates)
+                ...e,
+                id: e.id, // ID is important for update/delete
+                requestsSent: parseInt(e.requestsSent) || 0,
+                accepted: parseInt(e.accepted) || 0,
+                pending: parseInt(e.pending) || 0,
+                rejected: parseInt(e.rejected) || 0
+            }));
+            
+            if (entries.length > 0) {
+                // Determine the next sequential ID from the loaded data
+                nextId = Math.max(...entries.map(e => e.id)) + 1;
+            } else {
+                nextId = 1;
+            }
+            
+            if (entries.length === 0) {
+                addEntry(false); // Add one empty entry if database is empty
+            }
+
+        } else {
+            console.error("Failed to load data from sheet:", json.error);
+            addEntry(false); // Add one empty entry on failure
+        }
+    } catch (e) {
+        console.error("Error fetching data:", e);
+        alert("Could not load data from Google Sheet. Check the script URL and deployment.");
+        addEntry(false); // Add one empty entry on complete failure
+    }
+    renderTable();
+    updateStats();
+}
+
+
+// --- Time Zone Calculation Logic (Keep as is) ---
 function calculateTimeZones(istDateTimeString) {
     if (!istDateTimeString) {
         return { day: '', est: '', pdt: '', bst: '' };
     }
 
-    // 1. Create a Date object from the IST string
-    // The input format is ISO-like (YYYY-MM-DDTHH:MM), but we'll treat it as IST.
-    // The trick is to append 'Z' to make the browser treat it as UTC, then apply
-    // a 5.5 hour offset (IST is UTC+5.5) to get the real UTC time of the event.
-    // This is complex, so for simplicity and robustness, we use a custom parser.
-    
-    // Simple way to get a Date object that is *exactly* the IST time:
     const [datePart, timePart] = istDateTimeString.split('T');
     const [year, month, day] = datePart.split('-').map(Number);
     const [hour, minute] = timePart.split(':').map(Number);
     
-    // Create a new Date object assuming the local machine is running IST (or a similar trick)
-    // The most reliable way is often to parse it as an IST string for conversion.
-    
-    // Using UTC date and then adjusting for IST to get a universal reference time:
+    // Create a Date object representing the IST moment
     const istDate = new Date(Date.UTC(year, month - 1, day, hour, minute));
-    // IST is UTC+5:30. To get the actual moment in UTC, we subtract 5.5 hours (330 minutes) from the assumed IST time.
-    istDate.setUTCMinutes(istDate.getUTCMinutes() - 330);
+    istDate.setUTCMinutes(istDate.getUTCMinutes() - 330); // Adjust to true UTC 
 
-
-    // 2. Formatting options
+    // Formatting options
     const options = {
         hour: '2-digit',
         minute: '2-digit',
-        timeZoneName: 'shortOffset',
+        timeZoneName: 'short', // Changed to 'short' for cleaner output
         weekday: 'short'
     };
     
@@ -51,7 +109,7 @@ function calculateTimeZones(istDateTimeString) {
     const dayOptions = { weekday: 'long' };
     const istDay = istDate.toLocaleString('en-US', dayOptions);
 
-    // 3. Time Zone Conversions
+    // Time Zone Conversions
     const timeZones = [
         { zone: 'America/New_York', key: 'est' }, // EST/EDT
         { zone: 'America/Los_Angeles', key: 'pdt' }, // PST/PDT
@@ -63,11 +121,10 @@ function calculateTimeZones(istDateTimeString) {
     timeZones.forEach(({ zone, key }) => {
         try {
             const timeOptions = { ...options, timeZone: zone };
-            const timeString = istDate.toLocaleString('en-US', timeOptions);
-            results[key] = timeString.replace(/, GMT\+\d+/, ''); // Clean up the result
+            let timeString = istDate.toLocaleString('en-US', timeOptions);
+            results[key] = timeString;
         } catch (e) {
             results[key] = 'N/A';
-            console.error(`Error formatting time for ${zone}:`, e);
         }
     });
     
@@ -94,49 +151,23 @@ function loadTheme() {
     document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
-// --- Data Management (Updated) ---
-function loadData() {
-    const saved = localStorage.getItem('linkedinTrackerData');
-    if (saved) {
-        try {
-            entries = JSON.parse(saved);
-            // Ensure compatibility with old structure if necessary, or just rely on new structure
-            if (entries.length > 0) {
-                nextId = Math.max(...entries.map(e => e.id)) + 1;
-            } else {
-                addEntry();
-            }
-        } catch (e) {
-            addEntry();
-        }
-    } else {
-        addEntry();
-    }
-    renderTable();
-    updateStats();
-}
+// --- Data CRUD (Modified to use API) ---
 
-function saveData() {
-    localStorage.setItem('linkedinTrackerData', JSON.stringify(entries));
-}
-
-function addEntry() {
-    // Auto-populate with current date/time in YYYY-MM-DDT HH:MM format (IST assumed)
+async function addEntry(saveToSheet = true) {
     const now = new Date();
-    // Use an IST offset of 5 hours 30 minutes
-    const istOffset = 330 * 60000; // 330 minutes in ms
+    const istOffset = 330 * 60000; 
     const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
     const istTime = new Date(utcTime + istOffset);
     
     const datePart = istTime.toISOString().split('T')[0];
-    const timePart = istTime.toTimeString().slice(0, 5); // HH:MM
+    const timePart = istTime.toTimeString().slice(0, 5); 
     const istDateTime = `${datePart}T${timePart}`;
     
     const calculatedTimes = calculateTimeZones(istDateTime);
 
     const newEntry = {
-        id: nextId++,
-        istDateTime: istDateTime, // Combined date and time
+        id: nextId++, // Temporary ID for client-side tracking
+        istDateTime: istDateTime,
         day: calculatedTimes.day,
         estTime: calculatedTimes.est,
         pdtTime: calculatedTimes.pdt,
@@ -146,12 +177,25 @@ function addEntry() {
         pending: 0,
         rejected: 0
     };
-    entries.push(newEntry);
-    saveData();
+
+    if (saveToSheet) {
+        const response = await apiCall('ADD', newEntry);
+        if (response.success) {
+            // Use the actual ID assigned by the sheet
+            newEntry.id = response.entry.id; 
+            entries.push(newEntry);
+        } else {
+            // Revert the temporary ID if save failed
+            nextId--; 
+        }
+    } else {
+        // For local initialization, use the temporary ID
+        entries.push(newEntry);
+    }
+
     renderTable();
     updateStats();
     
-    // Animate the new row
     setTimeout(() => {
         const lastRow = document.querySelector('#tableBody tr:last-child');
         if (lastRow) {
@@ -160,16 +204,24 @@ function addEntry() {
     }, 10);
 }
 
-function deleteEntry(id) {
+async function deleteEntry(id) {
     if (confirm('Are you sure you want to delete this entry?')) {
-        entries = entries.filter(e => e.id !== id);
-        saveData();
-        renderTable();
-        updateStats();
+        const entryToDelete = entries.find(e => e.id === id);
+        if (!entryToDelete) return;
+        
+        const response = await apiCall('DELETE', entryToDelete);
+        
+        if (response.success) {
+            entries = entries.filter(e => e.id !== id);
+            renderTable();
+            updateStats();
+        }
     }
 }
 
-function updateEntry(id, field, value) {
+async function updateEntry(id, field, value) {
+    if (isSaving) return; // Prevent concurrent saves
+
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
 
@@ -192,23 +244,34 @@ function updateEntry(id, field, value) {
         const rejected = parseInt(entry.rejected) || 0;
         entry.pending = sent - accepted - rejected;
     }
+    
+    // 4. Save to Sheet
+    isSaving = true;
+    const response = await apiCall('UPDATE', entry);
+    isSaving = false;
 
-    saveData();
-    renderTable();
-    updateStats();
+    if (response.success) {
+        // Re-render only to update derived values like rate/pending/stats
+        renderTable(); 
+        updateStats();
+    } else {
+        alert("Update failed. Data not saved to Google Sheet.");
+        // Consider a way to revert the change or reload data
+    }
 }
 
-// --- Table Rendering (Modified) ---
+// --- Table Rendering (Modified for new columns) ---
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = entries.map((entry, index) => {
-        const rate = entry.requestsSent > 0 
-            ? ((entry.accepted / entry.requestsSent) * 100).toFixed(1) 
+        const sent = parseInt(entry.requestsSent) || 0;
+        const accepted = parseInt(entry.accepted) || 0;
+        const rate = sent > 0 
+            ? ((accepted / sent) * 100).toFixed(1) 
             : 0;
         
         const rateClass = rate >= 30 ? 'rate-high' : rate >= 20 ? 'rate-medium' : 'rate-low';
         
-        // Extract Date and Time for display/CSV
         const [datePart, timePart] = entry.istDateTime ? entry.istDateTime.split('T') : ['', ''];
 
         return `
@@ -218,7 +281,7 @@ function renderTable() {
                         onchange="updateEntry(${entry.id}, 'istDateTime', this.value)">
                 </td>
                 <td>${entry.day || 'N/A'}</td>
-                <td>${timePart}</td>
+                <td>${timePart || 'N/A'}</td>
                 <td>${entry.estTime || 'N/A'}</td>
                 <td>${entry.pdtTime || 'N/A'}</td>
                 <td>${entry.bstTime || 'N/A'}</td>
@@ -253,7 +316,7 @@ function renderTable() {
     }).join('');
 }
 
-// --- Stats Update (Modified to use new fields) ---
+// --- Stats Update (Keep as is) ---
 function updateStats() {
     const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
     const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
@@ -319,24 +382,19 @@ function animateValue(id, start, end, duration) {
     }, 16);
 }
 
-// --- Export Data (Modified for new fields) ---
-function exportData() {
-    // ... (Stats calculation remains the same for the summary) ...
-    const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
-    const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
-    const totalPending = entries.reduce((sum, e) => sum + (parseInt(e.pending) || 0), 0);
-    const totalRejected = entries.reduce((sum, e) => sum + (parseInt(e.rejected) || 0), 0);
-    const acceptanceRate = totalSent > 0 ? ((totalAccepted / totalSent) * 100).toFixed(1) : 0;
-    
+// --- Export Data (Modified to use existing sheet) ---
+function exportData(event) {
+    // Since the data is already in a Google Sheet, we'll offer to download a CSV of the current *view*.
+    // The most efficient way is to load the Google Sheet directly and export.
     const csvContent = [
-        'IST Date,IST Time,Day,EST Time,PST Time,BST Time,Requests Sent,Accepted,Pending,Rejected,Acceptance Rate',
+        'IST Date,IST Time,Day,EST Time,PDT Time,BST Time,Requests Sent,Accepted,Pending,Rejected,Acceptance Rate',
         ...entries.map(e => {
-            const rate = e.requestsSent > 0 ? ((e.accepted / e.requestsSent) * 100).toFixed(1) : 0;
+            const sent = parseInt(e.requestsSent) || 0;
+            const accepted = parseInt(e.accepted) || 0;
+            const rate = sent > 0 ? ((accepted / sent) * 100).toFixed(1) : 0;
             const [datePart, timePart] = e.istDateTime ? e.istDateTime.split('T') : ['N/A', 'N/A'];
-            return `${datePart},${timePart},${e.day},"${e.estTime}","${e.pdtTime}","${e.bstTime}",${e.requestsSent},${e.accepted},${e.pending},${e.rejected},${rate}%`;
+            return `${datePart},${timePart},${e.day},"${e.estTime}","${e.pdtTime}","${e.bstTime}",${sent},${accepted},${e.pending},${e.rejected},${rate}%`;
         }),
-        '',
-        `Total,,,,,,${totalSent},${totalAccepted},${totalPending},${totalRejected},${acceptanceRate}%`
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -362,5 +420,5 @@ function exportData() {
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
     loadTheme();
-    loadData();
+    loadData(); // This now fetches from the Google Sheet
 });
