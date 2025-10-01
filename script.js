@@ -1,25 +1,80 @@
-
 /* ===================================== */
-/* script.js */
+/* script.js - MODIFIED */
 /* ===================================== */
 
-const timeSlots = [
-    { ist: '8:00 PM', us: '9:30 AM EST / 6:30 AM PST' },
-    { ist: '8:30 PM', us: '10:00 AM EST / 7:00 AM PST' },
-    { ist: '9:00 PM', us: '10:30 AM EST / 7:30 AM PST' },
-    { ist: '9:30 PM', us: '11:00 AM EST / 8:00 AM PST' },
-    { ist: '10:00 PM', us: '11:30 AM EST / 8:30 AM PST' },
-    { ist: '11:00 PM', us: '12:30 PM EST / 9:30 AM PST' },
-    { ist: '12:00 AM', us: '1:30 PM EST / 10:30 AM PST' },
-    { ist: '12:30 AM', us: '2:00 PM EST / 11:00 AM PST' },
-];
-
-const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+// Note: The original hardcoded time slots are replaced by real-time calculation.
 
 let entries = [];
 let nextId = 1;
 
-// Dark Mode Toggle
+// --- Time Zone Calculation Logic ---
+
+/**
+ * Calculates time for EST, PST, and BST based on a given IST date/time.
+ * @param {string} istDateTimeString - A string combining date and time (e.g., "2025-10-01T20:30").
+ * @returns {object} An object containing the calculated time zone strings.
+ */
+function calculateTimeZones(istDateTimeString) {
+    if (!istDateTimeString) {
+        return { day: '', est: '', pdt: '', bst: '' };
+    }
+
+    // 1. Create a Date object from the IST string
+    // The input format is ISO-like (YYYY-MM-DDTHH:MM), but we'll treat it as IST.
+    // The trick is to append 'Z' to make the browser treat it as UTC, then apply
+    // a 5.5 hour offset (IST is UTC+5.5) to get the real UTC time of the event.
+    // This is complex, so for simplicity and robustness, we use a custom parser.
+    
+    // Simple way to get a Date object that is *exactly* the IST time:
+    const [datePart, timePart] = istDateTimeString.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = timePart.split(':').map(Number);
+    
+    // Create a new Date object assuming the local machine is running IST (or a similar trick)
+    // The most reliable way is often to parse it as an IST string for conversion.
+    
+    // Using UTC date and then adjusting for IST to get a universal reference time:
+    const istDate = new Date(Date.UTC(year, month - 1, day, hour, minute));
+    // IST is UTC+5:30. To get the actual moment in UTC, we subtract 5.5 hours (330 minutes) from the assumed IST time.
+    istDate.setUTCMinutes(istDate.getUTCMinutes() - 330);
+
+
+    // 2. Formatting options
+    const options = {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'shortOffset',
+        weekday: 'short'
+    };
+    
+    // Day formatting
+    const dayOptions = { weekday: 'long' };
+    const istDay = istDate.toLocaleString('en-US', dayOptions);
+
+    // 3. Time Zone Conversions
+    const timeZones = [
+        { zone: 'America/New_York', key: 'est' }, // EST/EDT
+        { zone: 'America/Los_Angeles', key: 'pdt' }, // PST/PDT
+        { zone: 'Europe/London', key: 'bst' } // GMT/BST
+    ];
+
+    const results = { day: istDay };
+    
+    timeZones.forEach(({ zone, key }) => {
+        try {
+            const timeOptions = { ...options, timeZone: zone };
+            const timeString = istDate.toLocaleString('en-US', timeOptions);
+            results[key] = timeString.replace(/, GMT\+\d+/, ''); // Clean up the result
+        } catch (e) {
+            results[key] = 'N/A';
+            console.error(`Error formatting time for ${zone}:`, e);
+        }
+    });
+    
+    return results;
+}
+
+// --- Dark Mode Toggle (Keep as is) ---
 function toggleDarkMode() {
     const currentTheme = document.documentElement.getAttribute('data-theme');
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
@@ -27,7 +82,6 @@ function toggleDarkMode() {
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
     
-    // Add a bounce animation to the toggle button
     const toggle = document.querySelector('.dark-mode-toggle');
     toggle.style.animation = 'none';
     setTimeout(() => {
@@ -35,18 +89,18 @@ function toggleDarkMode() {
     }, 10);
 }
 
-// Load theme preference
 function loadTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
-// Load data from localStorage
+// --- Data Management (Updated) ---
 function loadData() {
     const saved = localStorage.getItem('linkedinTrackerData');
     if (saved) {
         try {
             entries = JSON.parse(saved);
+            // Ensure compatibility with old structure if necessary, or just rely on new structure
             if (entries.length > 0) {
                 nextId = Math.max(...entries.map(e => e.id)) + 1;
             } else {
@@ -62,18 +116,31 @@ function loadData() {
     updateStats();
 }
 
-// Save data to localStorage
 function saveData() {
     localStorage.setItem('linkedinTrackerData', JSON.stringify(entries));
 }
 
 function addEntry() {
+    // Auto-populate with current date/time in YYYY-MM-DDT HH:MM format (IST assumed)
+    const now = new Date();
+    // Use an IST offset of 5 hours 30 minutes
+    const istOffset = 330 * 60000; // 330 minutes in ms
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const istTime = new Date(utcTime + istOffset);
+    
+    const datePart = istTime.toISOString().split('T')[0];
+    const timePart = istTime.toTimeString().slice(0, 5); // HH:MM
+    const istDateTime = `${datePart}T${timePart}`;
+    
+    const calculatedTimes = calculateTimeZones(istDateTime);
+
     const newEntry = {
         id: nextId++,
-        date: '',
-        day: 'Tuesday',
-        istTime: '8:30 PM',
-        usTime: '10:00 AM EST / 7:00 AM PST',
+        istDateTime: istDateTime, // Combined date and time
+        day: calculatedTimes.day,
+        estTime: calculatedTimes.est,
+        pdtTime: calculatedTimes.pdt,
+        bstTime: calculatedTimes.bst,
         requestsSent: 0,
         accepted: 0,
         pending: 0,
@@ -106,13 +173,19 @@ function updateEntry(id, field, value) {
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
 
+    // 1. Update the field
     entry[field] = value;
 
-    if (field === 'istTime') {
-        const slot = timeSlots.find(s => s.ist === value);
-        entry.usTime = slot ? slot.us : '';
+    // 2. Recalculate time zones if the IST date/time changed
+    if (field === 'istDateTime') {
+        const calculatedTimes = calculateTimeZones(value);
+        entry.day = calculatedTimes.day;
+        entry.estTime = calculatedTimes.est;
+        entry.pdtTime = calculatedTimes.pdt;
+        entry.bstTime = calculatedTimes.bst;
     }
 
+    // 3. Recalculate pending requests
     if (['requestsSent', 'accepted', 'rejected'].includes(field)) {
         const sent = parseInt(entry.requestsSent) || 0;
         const accepted = parseInt(entry.accepted) || 0;
@@ -125,6 +198,7 @@ function updateEntry(id, field, value) {
     updateStats();
 }
 
+// --- Table Rendering (Modified) ---
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = entries.map((entry, index) => {
@@ -133,24 +207,21 @@ function renderTable() {
             : 0;
         
         const rateClass = rate >= 30 ? 'rate-high' : rate >= 20 ? 'rate-medium' : 'rate-low';
+        
+        // Extract Date and Time for display/CSV
+        const [datePart, timePart] = entry.istDateTime ? entry.istDateTime.split('T') : ['', ''];
 
         return `
             <tr style="animation: fadeIn 0.5s ease-out ${index * 0.1}s backwards">
                 <td>
-                    <input type="date" value="${entry.date}" 
-                        onchange="updateEntry(${entry.id}, 'date', this.value)">
+                    <input type="datetime-local" value="${entry.istDateTime}"
+                        onchange="updateEntry(${entry.id}, 'istDateTime', this.value)">
                 </td>
-                <td>
-                    <select onchange="updateEntry(${entry.id}, 'day', this.value)">
-                        ${days.map(d => `<option value="${d}" ${entry.day === d ? 'selected' : ''}>${d}</option>`).join('')}
-                    </select>
-                </td>
-                <td>
-                    <select onchange="updateEntry(${entry.id}, 'istTime', this.value)">
-                        ${timeSlots.map(s => `<option value="${s.ist}" ${entry.istTime === s.ist ? 'selected' : ''}>${s.ist}</option>`).join('')}
-                    </select>
-                </td>
-                <td>${entry.usTime}</td>
+                <td>${entry.day || 'N/A'}</td>
+                <td>${timePart}</td>
+                <td>${entry.estTime || 'N/A'}</td>
+                <td>${entry.pdtTime || 'N/A'}</td>
+                <td>${entry.bstTime || 'N/A'}</td>
                 <td>
                     <input type="number" value="${entry.requestsSent}" min="0"
                         onchange="updateEntry(${entry.id}, 'requestsSent', this.value)">
@@ -182,6 +253,7 @@ function renderTable() {
     }).join('');
 }
 
+// --- Stats Update (Modified to use new fields) ---
 function updateStats() {
     const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
     const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
@@ -197,10 +269,16 @@ function updateStats() {
     
     document.getElementById('acceptRate').textContent = acceptanceRate + '%';
 
-    // Calculate best time
+    // Calculate best time (grouped by Day and IST Hour for simplicity)
     const timeStats = {};
     entries.forEach(entry => {
-        const key = `${entry.day} ${entry.istTime}`;
+        if (!entry.istDateTime) return;
+        
+        // Extract the day and hour for grouping
+        const day = entry.day;
+        const istHour = entry.istDateTime.split('T')[1].split(':')[0]; 
+        const key = `${day} ${istHour}:00 IST`;
+
         if (!timeStats[key]) {
             timeStats[key] = { sent: 0, accepted: 0 };
         }
@@ -224,7 +302,7 @@ function updateStats() {
     document.getElementById('bestTime').textContent = bestTime;
 }
 
-// Animate number counting
+// --- Animate Value (Keep as is) ---
 function animateValue(id, start, end, duration) {
     const element = document.getElementById(id);
     const range = end - start;
@@ -241,21 +319,24 @@ function animateValue(id, start, end, duration) {
     }, 16);
 }
 
+// --- Export Data (Modified for new fields) ---
 function exportData() {
+    // ... (Stats calculation remains the same for the summary) ...
     const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
     const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
     const totalPending = entries.reduce((sum, e) => sum + (parseInt(e.pending) || 0), 0);
     const totalRejected = entries.reduce((sum, e) => sum + (parseInt(e.rejected) || 0), 0);
     const acceptanceRate = totalSent > 0 ? ((totalAccepted / totalSent) * 100).toFixed(1) : 0;
-
+    
     const csvContent = [
-        'Date,Day,IST Time,US Time,Requests Sent,Accepted,Pending,Rejected,Acceptance Rate',
+        'IST Date,IST Time,Day,EST Time,PST Time,BST Time,Requests Sent,Accepted,Pending,Rejected,Acceptance Rate',
         ...entries.map(e => {
             const rate = e.requestsSent > 0 ? ((e.accepted / e.requestsSent) * 100).toFixed(1) : 0;
-            return `${e.date},${e.day},${e.istTime},"${e.usTime}",${e.requestsSent},${e.accepted},${e.pending},${e.rejected},${rate}%`;
+            const [datePart, timePart] = e.istDateTime ? e.istDateTime.split('T') : ['N/A', 'N/A'];
+            return `${datePart},${timePart},${e.day},"${e.estTime}","${e.pdtTime}","${e.bstTime}",${e.requestsSent},${e.accepted},${e.pending},${e.rejected},${rate}%`;
         }),
         '',
-        `Total,,,${totalSent},${totalAccepted},${totalPending},${totalRejected},${acceptanceRate}%`
+        `Total,,,,,,${totalSent},${totalAccepted},${totalPending},${totalRejected},${acceptanceRate}%`
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
