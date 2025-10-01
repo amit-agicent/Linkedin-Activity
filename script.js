@@ -1,4 +1,8 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwO22KmGbXkP5sT28w129BT4u9yoIUUc81CeC46B9Mh0RNOuzWjw02vqVK4abScBmc-HQ/exec';
+// =====================================
+// script.js
+// =====================================
+
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwO22KmGbXkP5sT28w129BT4u9yoIUUc81CeC46B9Mh0RNOuzWjw02vqVK4abScBmc-HQ/exec";
 
 const timeSlots = [
     { ist: '8:00 PM', us: '9:30 AM EST / 6:30 AM PST' },
@@ -20,10 +24,9 @@ let nextId = 1;
 function toggleDarkMode() {
     const currentTheme = document.documentElement.getAttribute('data-theme');
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
-    
+
     const toggle = document.querySelector('.dark-mode-toggle');
     toggle.style.animation = 'none';
     setTimeout(() => {
@@ -31,13 +34,34 @@ function toggleDarkMode() {
     }, 10);
 }
 
-// Load theme preference
 function loadTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
-// Load data from localStorage
+// =====================================
+// Google Sheets Integration
+// =====================================
+function sendToGoogleSheet(entry) {
+    const params = new URLSearchParams({
+        date: entry.date,
+        day: entry.day,
+        istTime: entry.istTime,
+        usTime: entry.usTime,
+        requestsSent: entry.requestsSent,
+        accepted: entry.accepted,
+        pending: entry.pending,
+        rejected: entry.rejected
+    }).toString();
+
+    fetch(`${GAS_URL}?${params}`)
+        .then(() => console.log("Entry sent to Google Sheets"))
+        .catch(err => console.error("Error sending to Google Sheets:", err));
+}
+
+// =====================================
+// Data Handling
+// =====================================
 function loadData() {
     const saved = localStorage.getItem('linkedinTrackerData');
     if (saved) {
@@ -58,21 +82,17 @@ function loadData() {
     updateStats();
 }
 
-// Save data to localStorage
 function saveData() {
     localStorage.setItem('linkedinTrackerData', JSON.stringify(entries));
+
+    // Send latest entry to Google Sheet
+    const latest = entries[entries.length - 1];
+    if (latest) sendToGoogleSheet(latest);
 }
 
-// Send data to Google Sheets via no-cors fetch
-function sendToGoogleSheet(data) {
-    fetch(GAS_URL, {
-        method: 'POST',
-        mode: 'no-cors', // disables preflight
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-}
-
+// =====================================
+// CRUD Functions
+// =====================================
 function addEntry() {
     const newEntry = {
         id: nextId++,
@@ -87,15 +107,11 @@ function addEntry() {
     };
     entries.push(newEntry);
     saveData();
-    sendToGoogleSheet(newEntry);
     renderTable();
-    updateStats();
-    
+
     setTimeout(() => {
         const lastRow = document.querySelector('#tableBody tr:last-child');
-        if (lastRow) {
-            lastRow.style.animation = 'slideUp 0.5s ease-out';
-        }
+        if (lastRow) lastRow.style.animation = 'slideUp 0.5s ease-out';
     }, 10);
 }
 
@@ -126,47 +142,57 @@ function updateEntry(id, field, value) {
         entry.pending = sent - accepted - rejected;
     }
 
-    saveData();
-    sendToGoogleSheet(entry);
+    saveData(); // Save & push to Google Sheets
     renderTable();
     updateStats();
 }
 
+// =====================================
+// Table Rendering
+// =====================================
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = entries.map((entry, index) => {
-        const rate = entry.requestsSent > 0 
-            ? ((entry.accepted / entry.requestsSent) * 100).toFixed(1) 
+        const rate = entry.requestsSent > 0
+            ? ((entry.accepted / entry.requestsSent) * 100).toFixed(1)
             : 0;
-        
         const rateClass = rate >= 30 ? 'rate-high' : rate >= 20 ? 'rate-medium' : 'rate-low';
 
         return `
             <tr style="animation: fadeIn 0.5s ease-out ${index * 0.1}s backwards">
                 <td><input type="date" value="${entry.date}" onchange="updateEntry(${entry.id}, 'date', this.value)"></td>
-                <td><select onchange="updateEntry(${entry.id}, 'day', this.value)">
-                    ${days.map(d => `<option value="${d}" ${entry.day === d ? 'selected' : ''}>${d}</option>`).join('')}
-                </select></td>
-                <td><select onchange="updateEntry(${entry.id}, 'istTime', this.value)">
-                    ${timeSlots.map(s => `<option value="${s.ist}" ${entry.istTime === s.ist ? 'selected' : ''}>${s.ist}</option>`).join('')}
-                </select></td>
+                <td>
+                    <select onchange="updateEntry(${entry.id}, 'day', this.value)">
+                        ${days.map(d => `<option value="${d}" ${entry.day === d ? 'selected' : ''}>${d}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <select onchange="updateEntry(${entry.id}, 'istTime', this.value)">
+                        ${timeSlots.map(s => `<option value="${s.ist}" ${entry.istTime === s.ist ? 'selected' : ''}>${s.ist}</option>`).join('')}
+                    </select>
+                </td>
                 <td>${entry.usTime}</td>
                 <td><input type="number" value="${entry.requestsSent}" min="0" onchange="updateEntry(${entry.id}, 'requestsSent', this.value)"></td>
                 <td><input type="number" value="${entry.accepted}" min="0" onchange="updateEntry(${entry.id}, 'accepted', this.value)"></td>
                 <td><span class="pending-value">${entry.pending}</span></td>
                 <td><input type="number" value="${entry.rejected}" min="0" onchange="updateEntry(${entry.id}, 'rejected', this.value)"></td>
                 <td><span class="${rateClass}">${rate}%</span></td>
-                <td><button onclick="deleteEntry(${entry.id})" class="delete-btn" title="Delete entry">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                </button></td>
+                <td>
+                    <button onclick="deleteEntry(${entry.id})" class="delete-btn" title="Delete entry">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </td>
             </tr>
         `;
     }).join('');
 }
 
+// =====================================
+// Stats & Best Time Calculation
+// =====================================
 function updateStats() {
     const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
     const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
@@ -178,7 +204,7 @@ function updateStats() {
     animateValue('totalAccepted', parseInt(document.getElementById('totalAccepted').textContent) || 0, totalAccepted, 500);
     animateValue('totalPending', parseInt(document.getElementById('totalPending').textContent) || 0, totalPending, 500);
     animateValue('totalRejected', parseInt(document.getElementById('totalRejected').textContent) || 0, totalRejected, 500);
-    
+
     document.getElementById('acceptRate').textContent = acceptanceRate + '%';
 
     const timeStats = {};
@@ -210,7 +236,7 @@ function animateValue(id, start, end, duration) {
     const range = end - start;
     const increment = range / (duration / 16);
     let current = start;
-    
+
     const timer = setInterval(() => {
         current += increment;
         if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
@@ -221,6 +247,9 @@ function animateValue(id, start, end, duration) {
     }, 16);
 }
 
+// =====================================
+// CSV Export
+// =====================================
 function exportData() {
     const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
     const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
@@ -230,24 +259,24 @@ function exportData() {
 
     const csvContent = [
         'Date,Day,IST Time,US Time,Requests Sent,Accepted,Pending,Rejected,Acceptance Rate',
-        ...entries.map(e => {
-            const rate = e.requestsSent > 0 ? ((e.accepted / e.requestsSent) * 100).toFixed(1) : 0;
-            return `${e.date},${e.day},${e.istTime},"${e.usTime}",${e.requestsSent},${e.accepted},${e.pending},${e.rejected},${rate}%`;
-        }),
-        '',
-        `Total,,,${totalSent},${totalAccepted},${totalPending},${totalRejected},${acceptanceRate}%`
+        ...entries.map(e => `${e.date},${e.day},${e.istTime},${e.usTime},${e.requestsSent},${e.accepted},${e.pending},${e.rejected},${e.requestsSent>0?((e.accepted/e.requestsSent)*100).toFixed(1):0}`)
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'linkedin_timing_analysis_' + new Date().toISOString().split('T')[0] + '.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `linkedin_tracker_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+// =====================================
+// Initialization
+// =====================================
+document.addEventListener('DOMContentLoaded', () => {
     loadTheme();
     loadData();
+
+    document.getElementById('addEntryBtn').addEventListener('click', addEntry);
+    document.getElementById('darkModeBtn').addEventListener('click', toggleDarkMode);
+    document.getElementById('exportBtn').addEventListener('click', exportData);
 });
