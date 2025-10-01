@@ -5,6 +5,7 @@
 // 🛑 IMPORTANT: PASTE YOUR DEPLOYED GOOGLE APPS SCRIPT URL HERE
 const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwRuvU7ipi7gq1aSRDuJ6C2hP6WaTHnYVbQt1ROpy-sve_rZIBlGp28no_2GVBOWXTgAg/exec'; 
 
+
 let entries = [];
 let nextId = 1;
 let isSaving = false; 
@@ -26,8 +27,8 @@ const debounce = (func, delay) => {
  * Communicates with the Google Apps Script endpoint.
  */
 async function apiCall(action, entry = null) {
-    if (!APP_SCRIPT_URL.startsWith('http')) {
-        console.error("APP_SCRIPT_URL is not set. Data will not be saved.");
+    if (!APP_SCRIPT_URL || !APP_SCRIPT_URL.startsWith('http')) {
+        console.error("APP_SCRIPT_URL is not set or invalid. Data will not be saved.");
         return { success: false };
     }
     
@@ -79,9 +80,9 @@ function calculateTimeZones(istDateTimeString) {
     const istDay = istDate.toLocaleString('en-US', dayOptions);
 
     const timeZones = [
-        { zone: 'America/New_York', key: 'est' },   // EST/EDT
-        { zone: 'America/Los_Angeles', key: 'pdt' }, // PST/PDT
-        { zone: 'Europe/London', key: 'bst' }       // GMT/BST
+        { zone: 'America/New_York', key: 'est' },   
+        { zone: 'America/Los_Angeles', key: 'pdt' }, 
+        { zone: 'Europe/London', key: 'bst' }       
     ];
 
     const results = { day: istDay };
@@ -121,6 +122,8 @@ async function loadData() {
             entries = json.data.map(e => ({
                 ...e,
                 id: parseInt(e.id) || 0,
+                // 🛑 FIX: Ensure istDateTime is a string, defaulting to empty string if blank/null
+                istDateTime: e.istDateTime ? String(e.istDateTime) : '', 
                 requestsSent: parseInt(e.requestsSent) || 0,
                 accepted: parseInt(e.accepted) || 0,
                 pending: parseInt(e.pending) || 0,
@@ -226,7 +229,9 @@ async function saveEntry(id, field, value) {
 
     // 2. Recalculate time zones
     if (field === 'istDateTime') {
-        const calculatedTimes = calculateTimeZones(value);
+        // Ensure that the value passed to calculateTimeZones is valid
+        const validValue = value || '';
+        const calculatedTimes = calculateTimeZones(validValue);
         entry.day = calculatedTimes.day;
         entry.estTime = calculatedTimes.est;
         entry.pdtTime = calculatedTimes.pdt;
@@ -249,9 +254,7 @@ async function saveEntry(id, field, value) {
     if (response.success) {
         renderTable(); 
         updateStats();
-    } else {
-        // Optionally revert local change if save fails
-    }
+    } 
 }
 
 // Public facing function that uses debounce to prevent rapid-fire saves
@@ -274,7 +277,7 @@ function renderTable() {
         
         const rateClass = rate >= 30 ? 'rate-high' : rate >= 20 ? 'rate-medium' : 'rate-low';
         
-        // Use || '' to prevent 'undefined' error in datetime-local input
+        // 🛑 FIX: Use || '' here to ensure the value attribute is always a string.
         const istDateTimeValue = entry.istDateTime || '';
         const timePart = istDateTimeValue.split('T')[1] || 'N/A';
 
@@ -322,7 +325,7 @@ function renderTable() {
     }).join('');
 }
 
-// --- Stats Update ---
+// --- Stats Update (Logic remains the same) ---
 function updateStats() {
     const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
     const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
@@ -330,14 +333,12 @@ function updateStats() {
     const totalRejected = entries.reduce((sum, e) => sum + (parseInt(e.rejected) || 0), 0);
     const acceptanceRate = totalSent > 0 ? ((totalAccepted / totalSent) * 100).toFixed(1) : 0;
 
-    // Animate stat updates
     animateValue('totalSent', parseInt(document.getElementById('totalSent').textContent) || 0, totalSent, 500);
     animateValue('totalAccepted', parseInt(document.getElementById('totalAccepted').textContent) || 0, totalAccepted, 500);
     animateValue('totalPending', parseInt(document.getElementById('totalPending').textContent) || 0, totalPending, 500);
     
     document.getElementById('acceptRate').textContent = acceptanceRate + '%';
 
-    // Calculate best time
     const timeStats = {};
     entries.forEach(entry => {
         if (!entry.istDateTime || !entry.day) return;
@@ -369,7 +370,7 @@ function updateStats() {
     document.getElementById('bestTime').textContent = bestTime;
 }
 
-// --- Animate Value ---
+// --- Animate Value (Keep as is) ---
 function animateValue(id, start, end, duration) {
     const element = document.getElementById(id);
     const range = end - start;
@@ -386,7 +387,7 @@ function animateValue(id, start, end, duration) {
     }, 16);
 }
 
-// --- Export Data ---
+// --- Export Data (Keep as is) ---
 function exportData(event) {
     const csvContent = [
         'IST Date,IST Time,Day,EST Time,PDT Time,BST Time,Requests Sent,Accepted,Pending,Rejected,Acceptance Rate',
@@ -407,21 +408,4 @@ function exportData(event) {
     a.click();
     window.URL.revokeObjectURL(url);
     
-    // Success feedback
-    const btn = event.target.closest('.btn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Exported!';
-    btn.style.background = '#16a34a';
-    
-    setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.style.background = '';
-    }, 2000);
-}
-
-// --- Initialization ---
-window.addEventListener('DOMContentLoaded', () => {
-    loadTheme();
-    loadData(); 
-});
-
+    const btn = event.target.closest('.
