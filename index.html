@@ -1,88 +1,98 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LinkedIn Connection Tracker</title>
-    <link rel="stylesheet" href="style.css"> 
+    <title>LinkedIn Outreach Timing Tracker</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
+        <svg class="sun-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+    </button>
 
-    <header>
-        <div class="header-content">
-            <h1>🌐 LinkedIn Timing Tracker</h1>
-            <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark/Light Mode" aria-label="Toggle Dark/Light Mode">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="5"></circle>
-                    <line x1="12" y1="1" x2="12" y2="3"></line>
-                    <line x1="12" y1="21" x2="12" y2="23"></line>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                    <line x1="1" y1="12" x2="3" y2="12"></line>
-                    <line x1="21" y1="12" x2="23" y2="12"></line>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                </svg>
-            </button>
+    <div class="container">
+        <!-- Stats Card -->
+        <div class="card stats-card animate-fade-in">
+            <h1 class="title">LinkedIn Outreach Timing Tracker</h1>
+            <p class="subtitle">Track your connection requests by timing to find your sweet spot</p>
+
+            <div class="stats-grid">
+                <div class="stat-box stat-blue animate-slide-up" style="animation-delay: 0.1s">
+                    <div class="stat-label">Total Sent</div>
+                    <div class="stat-value" id="totalSent">0</div>
+                </div>
+                <div class="stat-box stat-green animate-slide-up" style="animation-delay: 0.2s">
+                    <div class="stat-label">Accepted</div>
+                    <div class="stat-value" id="totalAccepted">0</div>
+                </div>
+                <div class="stat-box stat-yellow animate-slide-up" style="animation-delay: 0.3s">
+                    <div class="stat-label">Pending</div>
+                    <div class="stat-value" id="totalPending">0</div>
+                </div>
+                <div class="stat-box stat-red animate-slide-up" style="animation-delay: 0.4s">
+                    <div class="stat-label">Rejected</div>
+                    <div class="stat-value" id="totalRejected">0</div>
+                </div>
+                <div class="stat-box stat-purple animate-slide-up" style="animation-delay: 0.5s">
+                    <div class="stat-label">Accept Rate</div>
+                    <div class="stat-value" id="acceptRate">0%</div>
+                </div>
+            </div>
+
+            <div class="best-time-card animate-fade-in" style="animation-delay: 0.6s">
+                <div class="best-time-header">
+                    <svg class="icon icon-pulse" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                        <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    <span class="best-time-title">Best Performing Time</span>
+                </div>
+                <div class="best-time-value" id="bestTime">Need at least 10 requests per time slot</div>
+            </div>
+
+            <div class="button-group animate-fade-in" style="animation-delay: 0.7s">
+                <button onclick="addEntry()" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Entry
+                </button>
+                <button onclick="exportData(event)" class="btn btn-success">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export CSV
+                </button>
+            </div>
         </div>
-    </header>
 
-    <main class="container">
-        
-        <section class="dashboard-stats" aria-labelledby="statsHeading">
-            <h2 id="statsHeading" class="sr-only">Overview</h2>
-            <div class="card stat-card animate-fade-in">
-                <h2>Total Sent</h2>
-                <p id="totalSent" class="stat-value">0</p>
-            </div>
-            <div class="card stat-card animate-fade-in" style="animation-delay: 0.2s">
-                <h2>Total Accepted</h2>
-                <p id="totalAccepted" class="stat-value accepted">0</p>
-            </div>
-            <div class="card stat-card animate-fade-in" style="animation-delay: 0.4s">
-                <h2>Total Pending</h2>
-                <p id="totalPending" class="stat-value pending">0</p>
-            </div>
-            <div class="card stat-card animate-fade-in" style="animation-delay: 0.6s">
-                <h2>Acceptance Rate</h2>
-                <p id="acceptRate" class="stat-value rate">0%</p>
-            </div>
-            <div class="card stat-card full-width best-time-card animate-fade-in" style="animation-delay: 0.8s">
-                <h2>Best Time Slot Found</h2>
-                <p id="bestTime" class="stat-value best-time-slot">Data insufficient...</p>
-            </div>
-        </section>
-
-        <section class="actions">
-            <button class="btn btn-primary" onclick="addEntry()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                Add New Session
-            </button>
-            <button class="btn btn-secondary" onclick="exportData(event)">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Download CSV
-            </button>
-        </section>
-
-        <div class="card table-card animate-fade-in" style="animation-delay: 1s">
+        <!-- Table Card -->
+        <div class="card table-card animate-fade-in" style="animation-delay: 0.8s">
             <div class="table-wrapper">
                 <table class="data-table">
-                    <caption>LinkedIn Connection Sessions</caption>
                     <thead>
                         <tr>
-                            <th>IST Date/Time</th>
+                            <th>Date</th>
                             <th>Day</th>
                             <th>IST Time</th>
-                            <th>EST Time</th>
-                            <th>PDT Time</th>
-                            <th>BST Time</th>
+                            <th>US Time</th>
                             <th>Sent</th>
                             <th>Accepted</th>
                             <th>Pending</th>
@@ -91,15 +101,12 @@
                             <th>Action</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody">
-                        <tr class="empty-row"><td colspan="12">No data available yet. Add a session to get started!</td></tr>
-                    </tbody>
+                    <tbody id="tableBody"></tbody>
                 </table>
             </div>
         </div>
-    </main>
+    </div>
 
-    <script src="script.js" defer></script>
+    <script src="script.js"></script>
 </body>
 </html>
-
