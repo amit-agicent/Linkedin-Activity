@@ -1,0 +1,130 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Outreach Timing Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Dark Mode Toggle -->
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
+        <svg class="sun-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+    </button>
+
+    <div class="container">
+        <!-- Stats Dashboard -->
+        <div class="card stats-card animate-fade-in">
+            <h1 class="title">LinkedIn Outreach Timing Tracker</h1>
+            <p class="subtitle">Track your connection requests by timing to find your sweet spot</p>
+            
+            <div class="stats-grid">
+                <div class="stat-box stat-blue animate-slide-up" style="animation-delay: 0.1s">
+                    <div class="stat-label">Total Sent</div>
+                    <div class="stat-value" id="totalSent">0</div>
+                </div>
+                <div class="stat-box stat-green animate-slide-up" style="animation-delay: 0.2s">
+                    <div class="stat-label">Accepted</div>
+                    <div class="stat-value" id="totalAccepted">0</div>
+                </div>
+                <div class="stat-box stat-yellow animate-slide-up" style="animation-delay: 0.3s">
+                    <div class="stat-label">Pending</div>
+                    <div class="stat-value" id="totalPending">0</div>
+                </div>
+                <div class="stat-box stat-red animate-slide-up" style="animation-delay: 0.4s">
+                    <div class="stat-label">Rejected</div>
+                    <div class="stat-value" id="totalRejected">0</div>
+                </div>
+                <div class="stat-box stat-purple animate-slide-up" style="animation-delay: 0.5s">
+                    <div class="stat-label">Accept Rate</div>
+                    <div class="stat-value" id="acceptRate">0%</div>
+                </div>
+            </div>
+
+            <div class="best-time-card animate-fade-in" style="animation-delay: 0.6s">
+                <div class="best-time-header">
+                    <svg class="icon icon-pulse" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                        <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    <span class="best-time-title">Best Performing Time</span>
+                </div>
+                <div class="best-time-value" id="bestTime">Need at least 10 requests per time slot</div>
+            </div>
+
+            <div class="button-group animate-fade-in" style="animation-delay: 0.7s">
+                <button onclick="addEntry()" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Entry
+                </button>
+                <button onclick="exportData()" class="btn btn-success">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card table-card animate-fade-in" style="animation-delay: 0.8s">
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Day</th>
+                            <th>IST Time</th>
+                            <th>US Time</th>
+                            <th>Sent</th>
+                            <th>Accepted</th>
+                            <th>Pending</th>
+                            <th>Rejected</th>
+                            <th>Rate</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Guide Section -->
+        <div class="card guide-card animate-fade-in" style="animation-delay: 0.9s">
+            <h2 class="guide-title">Quick Guide</h2>
+            <div class="guide-content">
+                <p><strong>Goal:</strong> Test different times over 2-4 weeks to find your optimal outreach window</p>
+                <p><strong>Recommended:</strong> Send 20-25 requests per time slot for accurate data</p>
+                <p><strong>Best times to test:</strong> Tue/Wed/Thu between 8-10 PM IST and 11 PM-12:30 AM IST</p>
+                <p><strong>Track daily:</strong> Update accepted/rejected as responses come in (usually within 48-72 hours)</p>
+                <p><strong>Good acceptance rate:</strong> 25-35% for cold outreach, 40%+ is excellent</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+
