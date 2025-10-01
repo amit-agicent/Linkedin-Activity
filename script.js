@@ -1,8 +1,4 @@
-/* ===================================== */
-/* script.js (Google Sheets Backend) */
-/* ===================================== */
-
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwO22KmGbXkP5sT28w129BT4u9yoIUUc81CeC46B9Mh0RNOuzWjw02vqVK4abScBmc-HQ/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwO22KmGbXkP5sT28w129BT4u9yoIUUc81CeC46B9Mh0RNOuzWjw02vqVK4abScBmc-HQ/exec';
 
 const timeSlots = [
     { ist: '8:00 PM', us: '9:30 AM EST / 6:30 AM PST' },
@@ -20,67 +16,61 @@ const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 let entries = [];
 let nextId = 1;
 
-// Dark Mode
+// Dark Mode Toggle
 function toggleDarkMode() {
     const currentTheme = document.documentElement.getAttribute('data-theme');
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
-
+    
     const toggle = document.querySelector('.dark-mode-toggle');
     toggle.style.animation = 'none';
-    setTimeout(() => { toggle.style.animation = 'float 3s ease-in-out infinite'; }, 10);
+    setTimeout(() => {
+        toggle.style.animation = 'float 3s ease-in-out infinite';
+    }, 10);
 }
 
+// Load theme preference
 function loadTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
-// Fetch data from Google Sheet
-async function loadData() {
-    try {
-        const response = await fetch(WEB_APP_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'get' }),
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-
-        entries = data.map(e => ({
-            id: parseInt(e.id),
-            date: e.date || '',
-            day: e.day || 'Tuesday',
-            istTime: e.istTime || '8:30 PM',
-            usTime: e.usTime || '10:00 AM EST / 7:00 AM PST',
-            requestsSent: parseInt(e.requestsSent) || 0,
-            accepted: parseInt(e.accepted) || 0,
-            rejected: parseInt(e.rejected) || 0,
-            pending: parseInt(e.pending) || 0
-        }));
-
-        nextId = entries.length > 0 ? Math.max(...entries.map(e => e.id)) + 1 : 1;
-
-        if (entries.length === 0) addEntry();
-        renderTable();
-        updateStats();
-    } catch (err) {
-        console.error('Error fetching data from Google Sheets:', err);
+// Load data from localStorage
+function loadData() {
+    const saved = localStorage.getItem('linkedinTrackerData');
+    if (saved) {
+        try {
+            entries = JSON.parse(saved);
+            if (entries.length > 0) {
+                nextId = Math.max(...entries.map(e => e.id)) + 1;
+            } else {
+                addEntry();
+            }
+        } catch (e) {
+            addEntry();
+        }
+    } else {
         addEntry();
     }
+    renderTable();
+    updateStats();
 }
 
-// Save a single entry to Google Sheet
-async function saveEntry(entry) {
-    try {
-        await fetch(WEB_APP_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'save', entry }),
-            headers: { 'Content-Type': 'application/json' }
-        });
-    } catch (err) {
-        console.error('Error saving entry:', err);
-    }
+// Save data to localStorage
+function saveData() {
+    localStorage.setItem('linkedinTrackerData', JSON.stringify(entries));
+}
+
+// Send data to Google Sheets via no-cors fetch
+function sendToGoogleSheet(data) {
+    fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors', // disables preflight
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
 }
 
 function addEntry() {
@@ -92,42 +82,52 @@ function addEntry() {
         usTime: '10:00 AM EST / 7:00 AM PST',
         requestsSent: 0,
         accepted: 0,
-        rejected: 0,
-        pending: 0
+        pending: 0,
+        rejected: 0
     };
     entries.push(newEntry);
-    saveEntry(newEntry);
+    saveData();
+    sendToGoogleSheet(newEntry);
     renderTable();
     updateStats();
-
+    
     setTimeout(() => {
         const lastRow = document.querySelector('#tableBody tr:last-child');
-        if (lastRow) lastRow.style.animation = 'slideUp 0.5s ease-out';
+        if (lastRow) {
+            lastRow.style.animation = 'slideUp 0.5s ease-out';
+        }
     }, 10);
 }
 
 function deleteEntry(id) {
-    if (!confirm('Are you sure you want to delete this entry?')) return;
-    entries = entries.filter(e => e.id !== id);
-    saveEntry({ id, deleted: true });
-    renderTable();
-    updateStats();
+    if (confirm('Are you sure you want to delete this entry?')) {
+        entries = entries.filter(e => e.id !== id);
+        saveData();
+        renderTable();
+        updateStats();
+    }
 }
 
 function updateEntry(id, field, value) {
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
 
-    entry[field] = field === 'requestsSent' || field === 'accepted' || field === 'rejected' ? parseInt(value) || 0 : value;
+    entry[field] = value;
 
     if (field === 'istTime') {
         const slot = timeSlots.find(s => s.ist === value);
         entry.usTime = slot ? slot.us : '';
     }
 
-    entry.pending = entry.requestsSent - entry.accepted - entry.rejected;
+    if (['requestsSent', 'accepted', 'rejected'].includes(field)) {
+        const sent = parseInt(entry.requestsSent) || 0;
+        const accepted = parseInt(entry.accepted) || 0;
+        const rejected = parseInt(entry.rejected) || 0;
+        entry.pending = sent - accepted - rejected;
+    }
 
-    saveEntry(entry);
+    saveData();
+    sendToGoogleSheet(entry);
     renderTable();
     updateStats();
 }
@@ -135,7 +135,10 @@ function updateEntry(id, field, value) {
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = entries.map((entry, index) => {
-        const rate = entry.requestsSent > 0 ? ((entry.accepted / entry.requestsSent) * 100).toFixed(1) : 0;
+        const rate = entry.requestsSent > 0 
+            ? ((entry.accepted / entry.requestsSent) * 100).toFixed(1) 
+            : 0;
+        
         const rateClass = rate >= 30 ? 'rate-high' : rate >= 20 ? 'rate-medium' : 'rate-low';
 
         return `
@@ -165,10 +168,10 @@ function renderTable() {
 }
 
 function updateStats() {
-    const totalSent = entries.reduce((sum, e) => sum + e.requestsSent, 0);
-    const totalAccepted = entries.reduce((sum, e) => sum + e.accepted, 0);
-    const totalPending = entries.reduce((sum, e) => sum + e.pending, 0);
-    const totalRejected = entries.reduce((sum, e) => sum + e.rejected, 0);
+    const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
+    const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
+    const totalPending = entries.reduce((sum, e) => sum + (parseInt(e.pending) || 0), 0);
+    const totalRejected = entries.reduce((sum, e) => sum + (parseInt(e.rejected) || 0), 0);
     const acceptanceRate = totalSent > 0 ? ((totalAccepted / totalSent) * 100).toFixed(1) : 0;
 
     animateValue('totalSent', parseInt(document.getElementById('totalSent').textContent) || 0, totalSent, 500);
@@ -178,17 +181,17 @@ function updateStats() {
     
     document.getElementById('acceptRate').textContent = acceptanceRate + '%';
 
-    // Best performing time
     const timeStats = {};
     entries.forEach(entry => {
         const key = `${entry.day} ${entry.istTime}`;
         if (!timeStats[key]) timeStats[key] = { sent: 0, accepted: 0 };
-        timeStats[key].sent += entry.requestsSent;
-        timeStats[key].accepted += entry.accepted;
+        timeStats[key].sent += parseInt(entry.requestsSent) || 0;
+        timeStats[key].accepted += parseInt(entry.accepted) || 0;
     });
 
     let bestTime = 'Need at least 10 requests per time slot';
     let bestRate = 0;
+
     Object.entries(timeStats).forEach(([key, stat]) => {
         if (stat.sent >= 10) {
             const rate = (stat.accepted / stat.sent) * 100;
@@ -218,12 +221,11 @@ function animateValue(id, start, end, duration) {
     }, 16);
 }
 
-// Export CSV (remains local)
 function exportData() {
-    const totalSent = entries.reduce((sum, e) => sum + e.requestsSent, 0);
-    const totalAccepted = entries.reduce((sum, e) => sum + e.accepted, 0);
-    const totalPending = entries.reduce((sum, e) => sum + e.pending, 0);
-    const totalRejected = entries.reduce((sum, e) => sum + e.rejected, 0);
+    const totalSent = entries.reduce((sum, e) => sum + (parseInt(e.requestsSent) || 0), 0);
+    const totalAccepted = entries.reduce((sum, e) => sum + (parseInt(e.accepted) || 0), 0);
+    const totalPending = entries.reduce((sum, e) => sum + (parseInt(e.pending) || 0), 0);
+    const totalRejected = entries.reduce((sum, e) => sum + (parseInt(e.rejected) || 0), 0);
     const acceptanceRate = totalSent > 0 ? ((totalAccepted / totalSent) * 100).toFixed(1) : 0;
 
     const csvContent = [
@@ -245,7 +247,6 @@ function exportData() {
     window.URL.revokeObjectURL(url);
 }
 
-// Initialize
 window.addEventListener('DOMContentLoaded', () => {
     loadTheme();
     loadData();
